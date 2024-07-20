@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+</head>
+<body>
+    <h1>YouTube Video Downloader</h1>
+    <form id="downloadForm">
+        <input type="text" id="url" placeholder="YouTube URL" required>
+        <select id="format">
+            <option value="360p">360p</option>
+            <option value="480p">480p</option>
+            <option value="720p">720p</option>
+            <option value="1080p">1080p</option>
+        </select>
+        <button type="submit">Download</button>
+    </form>
+    <div id="progress" style="display: none;">
+        <progress id="progressBar" value="0" max="100"></progress>
+        <span id="progressText"></span>
+    </div>
+    <div id="downloadLink" style="display: none;">
+        <a id="videoLink" href="#">Download Video</a>
+    </div>
+
+    <script>
+        const form = document.getElementById('downloadForm');
+        const progressDiv = document.getElementById('progress');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const downloadLink = document.getElementById('downloadLink');
+        const videoLink = document.getElementById('videoLink');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = document.getElementById('url').value;
+            const format = document.getElementById('format').value;
+
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url, format})
+                });
+                const data = await response.json();
+                const downloadId = data.download_id;
+
+                progressDiv.style.display = 'block';
+                checkProgress(downloadId);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        function checkProgress(downloadId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/progress/${downloadId}`);
+                    const data = await response.json();
+
+                    progressBar.value = data.progress;
+                    progressText.textContent = `${data.status}: ${data.progress}%`;
+
+                    if (data.status === 'done') {
+                        clearInterval(interval);
+                        downloadLink.style.display = 'block';
+                        videoLink.href = `/get_video/${downloadId}`;
+                    } else if (data.status === 'error') {
+                        clearInterval(interval);
+                        progressText.textContent = `Error: ${data.progress}`;
+                    }
+                } catch (error) {
+                    console.error('Error checking progress:', error);
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
