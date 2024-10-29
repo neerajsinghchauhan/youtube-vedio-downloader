@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, redirect, url_for, session, render_template, send_file
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
+from flask_cors import CORS
 import yt_dlp
 import os
 import threading
