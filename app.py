@@ -56,6 +56,21 @@ def index():
 
 @app.route('/download', methods=['POST'])
 def download_video():
+    # Set up the Flow instance for OAuth
+    flow = Flow.from_client_secrets_file(
+        'client_secret.json',
+        scopes=['https://www.googleapis.com/auth/youtube.readonly'],
+        redirect_uri='https://youtube-vedio-downloader-7neeraj.onrender.com/oauth2callback'
+    )
+
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true'
+    )
+    session['state'] = state
+
+    # Redirect to the authorization URL
+    return redirect(authorization_url)
     if 'credentials' not in session:
         return redirect(url_for('authorize'))
 
