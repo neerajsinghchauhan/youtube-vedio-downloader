@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, redirect, url_for, session, render_template, send_file
+from flask_cors import CORS
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
-from flask_cors import CORS
 import yt_dlp
 import os
 import threading
@@ -9,6 +9,8 @@ import time
 import logging
 
 app = Flask(__name__)
+CORS(app, supports_credentials=True)
+
 app.secret_key = os.environ.get('FLASK_SECRET_KEY')  # Set in environment variables
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
