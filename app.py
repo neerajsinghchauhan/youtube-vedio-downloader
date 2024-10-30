@@ -39,20 +39,27 @@ def index():
 
 @app.route('/authorize')
 def authorize():
-    # Request a device code for user authentication
-    response = request.post(
-        DEVICE_CODE_URL,
-        data={
-            "client_id": CLIENT_ID,
-            "scope": SCOPE,
-        }
-    )
-    result = response.json()
-    
-    # Extract the necessary information for the user
-    user_code = result.get("user_code")
-    device_code = result.get("device_code")
-    verification_url = result.get("verification_url")
+    device_auth_url = 'https://oauth2.googleapis.com/device/code'
+    params = {
+        'client_id': CLIENT_ID,
+        'scope': 'https://www.googleapis.com/auth/youtube.readonly',
+    }
+    response = request.post(device_auth_url, data=params)
+
+    # Check for errors in response
+    if response.status_code != 200:
+        return jsonify({"error": "Failed to get authorization"}), response.status_code
+
+    data = response.json()
+
+    # Check for any specific errors in JSON data
+    if 'user_code' not in data or 'verification_url' not in data:
+        return jsonify({"error": "Authorization response missing data"}), 500
+
+    user_code = data['user_code']
+    verification_url = data['verification_url']
+
+    device_code = data("device_code")
     
     # Start polling for the access token
     threading.Thread(target=poll_for_token, args=(device_code,)).start()
