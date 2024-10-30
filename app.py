@@ -9,7 +9,7 @@ import logging
 
 app = Flask(__name__)
 CORS(app)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your_default_secret_key')
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')
 
 CLIENT_SECRETS_FILE = 'client_secret.json'
 REDIRECT_URI = 'https://youtube-vedio-downloader-7neeraj.onrender.com/oauth2callback'
@@ -33,7 +33,7 @@ def authorize():
     # Initiate OAuth2 flow
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
-        scopes=['https://www.googleapis.com/auth/youtube', 'https://www.googleapis.com/auth/youtube.readonly'],
+        scopes=['https://www.googleapis.com/auth/youtube'],
         redirect_uri=REDIRECT_URI
     )
     authorization_url, state = flow.authorization_url(
@@ -49,7 +49,7 @@ def oauth2callback():
     state = session.get('state')
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
-        scopes=['https://www.googleapis.com/auth/youtube', 'https://www.googleapis.com/auth/youtube.readonly'],
+        scopes=['https://www.googleapis.com/auth/youtube'],
         state=state,
         redirect_uri=REDIRECT_URI
     )
