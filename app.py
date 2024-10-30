@@ -88,7 +88,7 @@ def download_video():
                 "format": f"best[height<={resolution[:-1]}][ext=mp4]/best[ext=mp4]",
                 "outtmpl": f"static/downloads/output_{download_id}.%(ext)s",
                 "progress_hooks": [lambda d: update_progress(download_id, d)],
-                "cookiesfrombrowser": ("chrome", "User Data", "Profile 1") # Include if required
+                "youtube_include_dash_manifest": False,
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
