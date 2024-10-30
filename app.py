@@ -51,30 +51,45 @@ def oauth2callback():
         CLIENT_SECRETS_FILE,
         scopes=['https://www.googleapis.com/auth/youtube'],
         state=state,
-        redirect_uri=REDIRECT_URI
+        redirect_uri=url_for("oauth2callback", _external=True)
     )
     flow.fetch_token(authorization_response=request.url)
     credentials = flow.credentials
     session['credentials'] = credentials_to_dict(credentials)
     return redirect(url_for("index"))  # Redirect to home page after successful login
 
+def credentials_to_dict(credentials):
+    return {
+        'token': credentials.token,
+        'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
+    }
+
 @app.route('/download', methods=['POST'])
 def download_video():
-    if 'credentials' not in session:
-        return jsonify({'error': 'Authentication required.'}), 401
+    if "credentials" not in session:
+        return redirect(url_for("authorize"))
 
     data = request.json
-    url = data['url']
-    resolution = data['format']
+    url = data["url"]
+    resolution = data["format"]
+
+    # Generate unique download ID
     download_id = str(int(time.time()))
+    progress_data[download_id] = {"status": "Starting", "progress": 0}
 
     def download():
-        ydl_opts = {
-            'format': f'best[height<={resolution[:-1]}][ext=mp4]',
-            'outtmpl': f'static/downloads/output_{download_id}.%(ext)s',
-            'progress_hooks': [lambda d: update_progress(download_id, d)],
-        }
         try:
+            # Use OAuth2 token in yt-dlp options
+            ydl_opts = {
+                "format": f"best[height<={resolution[:-1]}][ext=mp4]/best[ext=mp4]",
+                "outtmpl": f"static/downloads/output_{download_id}.%(ext)s",
+                "progress_hooks": [lambda d: update_progress(download_id, d)],
+                "cookiesfrombrowser": ("chrome", "User Data", "Profile 1") # Include if required
+            }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
             progress_data[download_id] = {'status': 'done', 'progress': 100}
@@ -93,16 +108,6 @@ def update_progress(download_id, d):
         progress_data[download_id] = {'status': 'downloading', 'progress': d.get('percentage', 0)}
     elif d['status'] == 'finished':
         progress_data[download_id] = {'status': 'done', 'progress': 100}
-
-def credentials_to_dict(credentials):
-    return {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
-    }
 
 if __name__ == '__main__':
     os.makedirs('static/downloads', exist_ok=True)
