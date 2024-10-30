@@ -6,14 +6,23 @@ import os
 import threading
 import time
 import logging
+from google.auth.transport.requests import Request
 
 app = Flask(__name__)
 CORS(app)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY')
 
-CLIENT_SECRETS_FILE = 'client_secret.json'
-REDIRECT_URI = 'https://youtube-vedio-downloader-7neeraj.onrender.com/oauth2callback'
+# Environment variables for Google OAuth credentials
+CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+SCOPE = "https://www.googleapis.com/auth/youtube.readonly"
 
+# URLs for Google’s OAuth device flow
+DEVICE_CODE_URL = "https://oauth2.googleapis.com/device/code"
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+# In-memory storage of access token and refresh token
+credentials = None
 # Store download progress data
 progress_data = {}
 
@@ -23,40 +32,59 @@ logger = logging.getLogger(__name__)
 
 @app.route('/')
 def index():
-    # Check if user is authenticated
-    if 'credentials' not in session:
-        return redirect(url_for('authorize'))  # Redirect to Google OAuth2 flow if not authenticated
-    return render_template('index.html')  # Render download page if authenticated
+    # Check if credentials are already present and valid
+    if credentials and "access_token" in credentials:
+        return render_template("index.html", message="You are already signed in!")
+    return redirect("/authorize")
 
 @app.route('/authorize')
 def authorize():
-    # Initiate OAuth2 flow
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
-        scopes=['https://www.googleapis.com/auth/youtube'],
-        redirect_uri=REDIRECT_URI
+    # Request a device code for user authentication
+    response = request.post(
+        DEVICE_CODE_URL,
+        data={
+            "client_id": CLIENT_ID,
+            "scope": SCOPE,
+        }
     )
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true'
-    )
-    session['state'] = state
-    return redirect(authorization_url)
+    result = response.json()
+    
+    # Extract the necessary information for the user
+    user_code = result.get("user_code")
+    device_code = result.get("device_code")
+    verification_url = result.get("verification_url")
+    
+    # Start polling for the access token
+    threading.Thread(target=poll_for_token, args=(device_code,)).start()
+    
+    # Show instructions to the user
+    return render_template("device_login.html", verification_url=verification_url, user_code=user_code)
 
-@app.route('/oauth2callback')
-def oauth2callback():
-    # Complete OAuth2 flow
-    state = session.get('state')
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
-        scopes=['https://www.googleapis.com/auth/youtube'],
-        state=state,
-        redirect_uri=url_for("oauth2callback", _external=True)
-    )
-    flow.fetch_token(authorization_response=request.url)
-    credentials = flow.credentials
-    session['credentials'] = credentials_to_dict(credentials)
-    return redirect(url_for("index"))  # Redirect to home page after successful login
+# Polling function to request access token after user authorizes
+def poll_for_token(device_code):
+    global credentials
+    while True:
+        response = request.post(
+            TOKEN_URL,
+            data={
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "device_code": device_code,
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            }
+        )
+        token_response = response.json()
+
+        if "access_token" in token_response:
+            credentials = token_response  # Store the access and refresh token
+            print("Authorization successful!")
+            break
+        elif token_response.get("error") == "authorization_pending":
+            time.sleep(5)  # Polling interval
+        else:
+            print("Authorization failed:", token_response)
+            break
+
 
 def credentials_to_dict(credentials):
     return {
@@ -70,8 +98,9 @@ def credentials_to_dict(credentials):
 
 @app.route('/download', methods=['POST'])
 def download_video():
-    if "credentials" not in session:
-        return redirect(url_for("authorize"))
+    global credentials
+    if not credentials or "access_token" not in credentials:
+        return redirect("/authorize")
 
     data = request.json
     url = data["url"]
@@ -89,6 +118,7 @@ def download_video():
                 "outtmpl": f"static/downloads/output_{download_id}.%(ext)s",
                 "progress_hooks": [lambda d: update_progress(download_id, d)],
                 "youtube_include_dash_manifest": False,
+                "external_downloader_args": ["--access-token", credentials["access_token"]]
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
