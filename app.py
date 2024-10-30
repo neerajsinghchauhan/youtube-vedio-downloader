@@ -7,6 +7,7 @@ import threading
 import time
 import logging
 from google.auth.transport.requests import Request
+import requests  
 
 app = Flask(__name__)
 CORS(app)
@@ -44,7 +45,7 @@ def authorize():
         'client_id': CLIENT_ID,
         'scope': 'https://www.googleapis.com/auth/youtube.readonly',
     }
-    response = request.post(device_auth_url, data=params)
+    response = requests.post(device_auth_url, data=params)
 
     # Check for errors in response
     if response.status_code != 200:
