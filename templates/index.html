@@ -2,82 +2,71 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouTube Video Downloader</title>
+    <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
-    <h1>YouTube Video Downloader</h1>
-    <form id="downloadForm">
-        <input type="text" id="url" placeholder="YouTube URL" required>
-        <select id="format">
-            <option value="360p">360p</option>
-            <option value="480p">480p</option>
+    <h1>Download YouTube Videos</h1>
+    <form id="download-form">
+        <label for="url">Video URL:</label>
+        <input type="text" id="url" name="url" required>
+        
+        <label for="format">Resolution:</label>
+        <select id="format" name="format">
             <option value="720p">720p</option>
-            <option value="1080p">1080p</option>
+            <option value="480p">480p</option>
+            <option value="360p">360p</option>
         </select>
-        <button type="submit">Download</button>
+        
+        <button type="button" onclick="startDownload()">Download Video</button>
     </form>
-    <div id="progress" style="display: none;">
-        <progress id="progressBar" value="0" max="100"></progress>
-        <span id="progressText"></span>
-    </div>
-    <div id="downloadLink" style="display: none;">
-        <a id="videoLink" href="#">Download Video</a>
+
+    <div id="auth-instructions" style="display: none;">
+        <p>To authorize, please go to <a href="https://www.google.com/device" target="_blank">Google Device Auth</a> and enter the code provided:</p>
+        <p id="device-code"></p>
     </div>
 
     <script>
-        const form = document.getElementById('downloadForm');
-        const progressDiv = document.getElementById('progress');
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('progressText');
-        const downloadLink = document.getElementById('downloadLink');
-        const videoLink = document.getElementById('videoLink');
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        async function startDownload() {
             const url = document.getElementById('url').value;
             const format = document.getElementById('format').value;
 
             try {
-                const response = await fetch('/download', {
+                const response = await fetch('/start_auth', { method: 'POST' });
+                const authData = await response.json();
+
+                document.getElementById('auth-instructions').style.display = 'block';
+                document.getElementById('device-code').textContent = authData.device_code;
+
+                const downloadResponse = await fetch('/download', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url, format})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, format })
                 });
-                const data = await response.json();
-                const downloadId = data.download_id;
 
-                progressDiv.style.display = 'block';
-                checkProgress(downloadId);
+                const downloadData = await downloadResponse.json();
+                alert(downloadData.message || 'Download started!');
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error starting download:', error);
             }
-        });
-
-        function checkProgress(downloadId) {
-            const interval = setInterval(async () => {
-                try {
-                    const response = await fetch(`/progress/${downloadId}`);
-                    const data = await response.json();
-
-                    // Validate progress value
-                    const progressValue = isFinite(data.progress) ? data.progress : 0;
-
-                    progressBar.value = progressValue;
-                    progressText.textContent = `${data.status}: ${progressValue}%`;
-
-                    if (data.status === 'done') {
-                        clearInterval(interval);
-                        downloadLink.style.display = 'block';
-                        videoLink.href = `/get_video/${downloadId}`;
-                    } else if (data.status === 'error') {
-                        clearInterval(interval);
-                        progressText.textContent = `Error: ${data.progress}`;
-                    }
-                } catch (error) {
-                    console.error('Error checking progress:', error);
+        }
+    </script>
+    <script>
+        async function startAuth() {
+            try {
+                const response = await fetch('/start_auth', { method: 'POST' });
+                const data = await response.json();
+                if (data.user_code && data.verification_url) {
+                    document.getElementById('auth-info').innerHTML = `
+                        <p>Please visit <a href="${data.verification_url}" target="_blank">this link</a>
+                        and enter the code: <strong>${data.user_code}</strong></p>
+                    `;
+                } else {
+                    alert("Authorization failed. Please try again.");
                 }
-            }, 1000); // Poll every second
+            } catch (error) {
+                console.error("Error starting authorization:", error);
+            }
         }
     </script>
 </body>
